@@ -1,0 +1,35 @@
+{
+  "name": "vite-react-assemblyscript-wasm",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run asbuild && tsc && vite build",
+    "preview": "vite preview",
+    "asbuild:debug": "node node_modules/assemblyscript/bin/asc assembly/index.ts -o src/wasm/debug.wasm --debug",
+    "asbuild:release": "node node_modules/assemblyscript/bin/asc assembly/index.ts -o src/wasm/release.wasm --optimize --exportRuntime",
+    "asbuild": "npm run asbuild:debug && npm run asbuild:release",
+    "test": "node tests",
+    "start": "npx serve ."
+  },
+  "dependencies": {
+    "ethers": "^6.17.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.3.1",
+    "assemblyscript": "^0.27.37",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21"
+  },
+  "exports": {
+    ".": {
+      "import": "./build/release.js",
+      "types": "./build/release.d.ts"
+    }
+  }
+}
