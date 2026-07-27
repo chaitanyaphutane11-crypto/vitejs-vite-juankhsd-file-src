@@ -1,5 +1,12 @@
 {
   "extends": "assemblyscript/std/assembly.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "strict": true,
+    "noEmit": true
+  },
   "include": [
     "./**/*.ts"
   ]

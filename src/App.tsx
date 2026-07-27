@@ -93,25 +93,40 @@ class AsioInternalWasmEngine {
     return new Promise((resolve) => {
       setTimeout(() => {
         try {
-          if (!this.wasmExports || !this.wasmExports.compileBytecode) {
-            throw new Error();
+          if (!this.wasmExports || typeof this.wasmExports.compileBytecode !== "function") {
+            throw new Error("Missing WASM compileBytecode export");
           }
-          const { compileBytecode, __newString, __getString, __pin, __unpin } =
-            this.wasmExports;
-
+  
+          const {
+            compileBytecode,
+            __newString,
+            __getString,
+            __pin,
+            __unpin,
+          } = this.wasmExports;
+  
+          // Allocate string in WASM memory
           const inputPtr = __newString(bytecode);
           __pin(inputPtr);
+  
+          // Call WASM function
           const outputPtr = compileBytecode(inputPtr);
+  
+          // Lift result back to JS
           const resultString = __getString(outputPtr);
+  
+          // Release pinned memory
           __unpin(inputPtr);
+  
           resolve(resultString);
         } catch (err) {
-          // Fire our upgraded, universal fallback tokenizer mapping engine
+          console.error("WASM compile failed, falling back:", err);
           resolve(this.universalBytecodeExtractor(bytecode));
         }
       }, 0);
     });
   }
+  
 
   /**
    * Universal Extraction Engine: Safely handles both simple Yul PUSH4 maps
@@ -186,7 +201,8 @@ export default function App() {
   useEffect(() => {
     const streamWasmModuleFile = async () => {
       try {
-        const response = await fetch('/build/release.wasm');
+        debugger;
+        const response = await fetch('release.wasm');
         if (!response.ok) throw new Error('WASM file stream request failed.');
 
         const bufferBytes = await response.arrayBuffer();
@@ -228,7 +244,7 @@ export default function App() {
 
     // Connect the ASIO scheduler handler to our live variable stream instance
     const asioService = new AsioInternalWasmEngine(wasmExports);
-
+debugger;
     try {
       const tokenStreamString = await asioService.asyncCompile(rawHex);
       setConsoleLogs(
@@ -238,8 +254,9 @@ export default function App() {
 
       const discoveredMethods: DiscoveredMethod[] = [];
       const tokenSegments = tokenStreamString.split(';').filter(Boolean);
-
+debugger;
       for (const segment of tokenSegments) {
+        debugger;
         const [selector, inferredName, isViewFlag] = segment.split(',');
         if (selector && inferredName) {
           discoveredMethods.push({
@@ -287,6 +304,28 @@ export default function App() {
     }
   };
 
+  // WebAssembly String Helper Lifters
+  function allocateString(str, memoryExports) {
+    if (!str) return 0;
+    const len = str.length;
+    // Call AssemblyScript's baseline string creator if available, fallback to basic memory operations
+    const ptr = memoryExports.__new ? memoryExports.__new(len << 1, 2) : 0; 
+    if (!ptr) return 0;
+    const U16 = new Uint16Array(memoryExports.memory.buffer);
+    for (let i = 0, p = ptr >>> 1; i < len; ++i) U16[p + i] = str.charCodeAt(i);
+    return ptr;
+  }
+
+  function readString(pointer, memoryExports) {
+    if (!pointer) return '';
+    const buffer = memoryExports.memory.buffer;
+    const end = (pointer + new Uint32Array(buffer)[(pointer - 4) >>> 2]) >>> 1;
+    const U16 = new Uint16Array(buffer);
+    let start = pointer >>> 1, out = '';
+    while (end - start > 1024) out += String.fromCharCode(...U16.subarray(start, start += 1024));
+    return out + String.fromCharCode(...U16.subarray(start, end));
+  }
+
   const deconstructBytecode = (hex: string): string => {
     const lines: string[] = [];
     let cursor = 0;
@@ -297,55 +336,89 @@ export default function App() {
     );
     lines.push('; =========================================================\n');
 
-    while (cursor < hex.length) {
-      const currentByte = hex.substring(cursor, cursor + 2).toLowerCase();
-      const currentPC = pc;
-      cursor += 2;
-      pc += 1;
+    // while (cursor < hex.length) {
+    //   const currentByte = hex.substring(cursor, cursor + 2).toLowerCase();
+    //   const currentPC = pc;
+    //   cursor += 2;
+    //   pc += 1;
 
-      const opInfo = OPCODES_MAP[currentByte];
-      if (opInfo) {
-        if (opInfo.pushSize) {
-          const payload = hex.substring(cursor, cursor + opInfo.pushSize * 2);
-          cursor += opInfo.pushSize * 2;
-          pc += opInfo.pushSize;
-          lines.push(
-            `[PC:${String(currentPC).padStart(3, '0')}] ${opInfo.name.padEnd(
-              12
-            )} 0x${payload.padEnd(8)} ; ${opInfo.desc}`
-          );
-        } else {
-          lines.push(
-            `[PC:${String(currentPC).padStart(3, '0')}] ${opInfo.name.padEnd(
-              23
-            )} ; ${opInfo.desc}`
-          );
-        }
-      } else {
-        if (currentByte >= '60' && currentByte <= '7f') {
-          const pushLen = parseInt(currentByte, 16) - 0x60 + 1;
-          const payload = hex.substring(cursor, cursor + pushLen * 2);
-          cursor += pushLen * 2;
-          pc += pushLen;
-          lines.push(
-            `[PC:${String(currentPC).padStart(3, '0')}] PUSH${pushLen}`.padEnd(
-              20
-            ) +
-              ` 0x${payload.padEnd(8)} ; Pushes ${pushLen}-byte numeric content`
-          );
-        } else {
-          lines.push(
-            `[PC:${String(currentPC).padStart(
-              3,
-              '0'
-            )}] UNKNOWN 0x${currentByte.padEnd(
-              8
-            )} ; Non-instruction structural metadata segments`
-          );
-        }
-      }
+    //   const opInfo = OPCODES_MAP[currentByte];
+    //   if (opInfo) {
+    //     if (opInfo.pushSize) {
+    //       const payload = hex.substring(cursor, cursor + opInfo.pushSize * 2);
+    //       cursor += opInfo.pushSize * 2;
+    //       pc += opInfo.pushSize;
+    //       lines.push(
+    //         `[PC:${String(currentPC).padStart(3, '0')}] ${opInfo.name.padEnd(
+    //           12
+    //         )} 0x${payload.padEnd(8)} ; ${opInfo.desc}`
+    //       );
+    //     } else {
+    //       lines.push(
+    //         `[PC:${String(currentPC).padStart(3, '0')}] ${opInfo.name.padEnd(
+    //           23
+    //         )} ; ${opInfo.desc}`
+    //       );
+    //     }
+    //   } else {
+    //     if (currentByte >= '60' && currentByte <= '7f') {
+    //       const pushLen = parseInt(currentByte, 16) - 0x60 + 1;
+    //       const payload = hex.substring(cursor, cursor + pushLen * 2);
+    //       cursor += pushLen * 2;
+    //       pc += pushLen;
+    //       lines.push(
+    //         `[PC:${String(currentPC).padStart(3, '0')}] PUSH${pushLen}`.padEnd(
+    //           20
+    //         ) +
+    //           ` 0x${payload.padEnd(8)} ; Pushes ${pushLen}-byte numeric content`
+    //       );
+    //     } else {
+    //       lines.push(
+    //         `[PC:${String(currentPC).padStart(
+    //           3,
+    //           '0'
+    //         )}] UNKNOWN 0x${currentByte.padEnd(
+    //           8
+    //         )} ; Non-instruction structural metadata segments`
+    //       );
+    //     }
+    //   }
+    // }
+    // return lines.join('\n');
+    if (!wasmInstance) {
+      setConsoleLogs('Error: WebAssembly execution module has not finished loading yet.');
+      return;
     }
-    return lines.join('\n');
+
+   
+      // Allocate JavaScript hex string down into WebAssembly Memory Space
+      const hexPointer = allocateString(rawHex, wasmInstance);
+      
+      // Execute the module computation function targeting the memory pointer
+      const resultPointer = wasmInstance.compileBytecode(hexPointer);
+      
+      // Retrieve and parse the structural string back from WebAssembly space
+      const rawJsonResult = readString(resultPointer, wasmInstance);
+      const tokens = JSON.parse(rawJsonResult);
+
+      // Reassemble tokens back into your beautiful custom terminal report layout
+      
+      lines.push('; =========================================================');
+      lines.push('; STANDALONE FILE-BASED EXTERNAL WASM DECOMPILER ASSEMBLY BREAKDOWN');
+      lines.push('; =========================================================\n');
+
+      tokens.forEach(tok => {
+        const pcStr = `[PC:${String(tok.pc).padStart(3, '0')}]`;
+        if (tok.pushData) {
+          lines.push(`${pcStr} ${tok.name.padEnd(12)} 0x${tok.pushData.padEnd(8)} ; ${tok.desc}`);
+        } else {
+          lines.push(`${pcStr} ${tok.name.padEnd(23)} ; ${tok.desc}`);
+        }
+      });
+
+     return lines.join('\n');
+    
+  
   };
 
   const mapSolidityTypeToTs = (solidityType: string): string => {

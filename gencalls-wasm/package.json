@@ -4,8 +4,8 @@
   "main": "index.js",
   "scripts": {
     "test": "node --test",
-    "asbuild:debug": "asc assembly/index.ts --target debug",
-    "asbuild:release": "asc assembly/index.ts --target release",
+    "asbuild:debug": "asc gencalls/assembly/index.ts --target debug",
+    "asbuild:release": "asc gencalls/assembly/index.ts --target release",
     "asbuild": "npm run asbuild:debug && npm run asbuild:release",
     "start": "npx serve ."
   },
@@ -14,7 +14,7 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
-    "assemblyscript": "^0.27.29"
+    "assemblyscript": "^0.27.30"
   },
   "type": "module",
   "exports": {
