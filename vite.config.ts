@@ -8,5 +8,8 @@ export default defineConfig({
       // Allows Vite to read the generated build/ artifacts directly
       allow: ['.'],
     },
+    watch: {
+      ignored: ['**/*.wasm.map']
+    }
   },
 });

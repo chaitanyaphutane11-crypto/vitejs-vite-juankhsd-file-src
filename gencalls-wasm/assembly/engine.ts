@@ -37,6 +37,36 @@ export function initDatabase(): void {
   OPCODES_MAP.set("63", new Opcode("PUSH4", "Pushes a 4-byte value (Function Selector Routing Flag)", 4));
   OPCODES_MAP.set("f3", new Opcode("RETURN", "Halts execution loop, outputs designated memory segment data"));
   OPCODES_MAP.set("fd", new Opcode("REVERT", "Halts execution loop, rolls back state transitions"));
+
+  // POP
+  OPCODES_MAP.set("50", new Opcode("POP", "Removes top element from active stack context"));
+
+  // SWAP1–SWAP16
+  for (let n: i32 = 1; n <= 16; n++) {
+    let hex = (0x8f + n).toString(16); // 0x90 = SWAP1 up to 0x9f = SWAP16
+    OPCODES_MAP.set(hex, new Opcode("SWAP" + n.toString(), "Swaps position order of 1st and " + (n+1).toString() + "th stack items"));
+  }
+
+  // DUP1–DUP16
+  for (let n: i32 = 1; n <= 16; n++) {
+    let hex = (0x7f + n).toString(16); // 0x80 = DUP1 up to 0x8f = DUP16
+    OPCODES_MAP.set(hex, new Opcode("DUP" + n.toString(), "Duplicates the " + n.toString() + "th stack item"));
+  }
+
+  // PUSH2–PUSH32
+  for (let n: i32 = 2; n <= 32; n++) {
+    let hex = (0x5f + n).toString(16); // 0x61 = PUSH2 up to 0x7f = PUSH32
+    OPCODES_MAP.set(hex, new Opcode("PUSH" + n.toString(), "Pushes a " + n.toString() + "-byte value onto stack", n));
+  }
+
+  // LOG0–LOG4
+  for (let n: i32 = 0; n <= 4; n++) {
+    let hex = (0xa0 + n).toString(16);
+    OPCODES_MAP.set(hex, new Opcode("LOG" + n.toString(), "Append log record with " + n.toString() + " topics"));
+  }
+
+  // INVALID
+  OPCODES_MAP.set("fe", new Opcode("INVALID", "Triggers hardware execution panic abort condition"));
 }
 
 // Compile bytecode: tokenize into structured JSON
@@ -45,7 +75,7 @@ export function compileBytecode(bytecode: string): string {
   let results: string[] = [];
 
   while (i < bytecode.length) {
-    let opcode = bytecode.substr(i, 2);
+    let opcode = bytecode.substr(i, 2).toLowerCase();
     i += 2;
 
     let entry = OPCODES_MAP.has(opcode) ? OPCODES_MAP.get(opcode) : null;
@@ -66,4 +96,21 @@ export function compileBytecode(bytecode: string): string {
   }
 
   return "[" + results.join(",") + "]";
+}
+
+// =========================================================
+// String allocator + preservation hook
+// =========================================================
+
+export function allocateWasmString(len: i32): i32 {
+  let size = usize(len) << 1; 
+  return i32(__new(size, 1)); // ID 1 = String Class Object
+}
+
+export function _compilerPreserveHook(): void {
+  let ptr = allocateWasmString(1);
+  if (ptr > 0) {
+    let str = "test";
+    str.length;
+  }
 }
