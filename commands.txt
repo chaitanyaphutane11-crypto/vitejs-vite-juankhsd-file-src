@@ -1,0 +1,20 @@
+	# [Target Directory: /]
+# Create clean project directory and navigate inside
+mkdir gencalls-decompiler-workspace && cd gencalls-decompiler-workspace
+
+# [Target Directory: /gencalls-decompiler-workspace]
+# Initialize the framework package profile
+npm init -y
+
+# [Target Directory: /gencalls-decompiler-workspace]
+# Install React core architectures alongside production build tools
+npm install react react-dom ethers@6
+npm install --save-dev assemblyscript typescript @types/react @types/react-dom vite @vitejs/plugin-react
+
+# [Target Directory: /gencalls-decompiler-workspace]
+# Initialize standard AssemblyScript folder framework scaffolding
+npx asinit .
+
+npm install --save-dev assemblyscript@0.27.30
+npx asc assembly/engine.ts --target release --outFile public/build/release.wasm --optimize --noAssert --exportRuntime
+npx spirv-dis public/release.wasm 2>/dev/null || npx asc public/release.wasm --text | grep -E "export \"(__new|__liftString|compileBytecode|allocateWasmString)\""
